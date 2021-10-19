@@ -12,7 +12,6 @@ package com.cburch.logisim.std.io.extra;
 import static com.cburch.logisim.std.Strings.S;
 
 import com.cburch.contracts.BaseMouseListenerContract;
-import com.cburch.logisim.circuit.CircuitState;
 import com.cburch.logisim.data.Attribute;
 import com.cburch.logisim.data.Attributes;
 import com.cburch.logisim.data.BitWidth;
@@ -20,7 +19,6 @@ import com.cburch.logisim.data.Bounds;
 import com.cburch.logisim.data.Direction;
 import com.cburch.logisim.data.Value;
 import com.cburch.logisim.gui.icons.ArithmeticIcon;
-import com.cburch.logisim.gui.main.Frame;
 import com.cburch.logisim.instance.Instance;
 import com.cburch.logisim.instance.InstanceFactory;
 import com.cburch.logisim.instance.InstanceLogger;
@@ -52,60 +50,31 @@ public class PlaRom extends InstanceFactory {
    */
   public static final String _ID = "PlaRom";
 
-  private static class ContentsAttribute extends Attribute<String> {
-    private InstanceState state = null;
-    private Instance instance = null;
-    private CircuitState circ = null;
+  private static class ContentsAttribute extends Attribute<PlaRomData> {
 
     private ContentsAttribute() {
       super("Contents", S.getter("romContentsAttr"));
     }
 
     @Override
-    public java.awt.Component getCellEditor(Window source, String value) {
-      Project proj = null;
-      if (source instanceof Frame) proj = ((Frame) source).getProject();
-      PlaRomData data = null;
-      if (this.state != null) data = getPlaRomData(state);
-      else if (this.instance != null && this.circ != null) {
-        data = getPlaRomData(instance, circ);
-      }
-      ContentsCell ret = new ContentsCell(data);
-      // call mouse click function and open edit window
+    public java.awt.Component getCellEditor(Window source, PlaRomData value) {
+      final var ret = new ContentsCell(value);
       ret.mouseClicked(null);
-      // if something changed
-      if (this.state != null
-          && !data.getSavedData().equals(state.getAttributeValue(CONTENTS_ATTR))) {
-        state.fireInvalidated();
-        state.getAttributeSet().setValue(CONTENTS_ATTR, data.getSavedData());
-        if (proj != null) proj.getLogisimFile().setDirty(true);
-      } else if (this.instance != null
-          && !data.getSavedData().equals(instance.getAttributeValue(CONTENTS_ATTR))) {
-        instance.fireInvalidated();
-        instance.getAttributeSet().setValue(CONTENTS_ATTR, data.getSavedData());
-        if (proj != null) proj.getLogisimFile().setDirty(true);
-      }
       return ret;
     }
 
     @Override
-    public String parse(String value) {
-      return value;
+    public PlaRomData parse(String value) {
+      return new PlaRomData(value);
     }
-
-    // i don't know other ways to do this, I'll try to change this when I'll know
-    // better Burch's code
-    void setData(Instance instance, CircuitState circ) {
-      if (!instance.equals(this.instance)) this.instance = instance;
-      if (!circ.equals(this.circ)) this.circ = circ;
-    }
-
-    void setData(InstanceState state) {
-      if (!state.equals(this.state)) this.state = state;
+    
+    @Override
+    public String toStandardString(PlaRomData value) {
+      return PlaRomData.toStandardString(value);
     }
 
     @Override
-    public String toDisplayString(String value) {
+    public String toDisplayString(PlaRomData value) {
       return S.get("romContentsValue");
     }
   }
@@ -137,8 +106,7 @@ public class PlaRom extends InstanceFactory {
 
     @Override
     public BitWidth getBitWidth(InstanceState state, Object option) {
-      PlaRomData data = getPlaRomData(state);
-      return BitWidth.create(data.getOutputs());
+      return BitWidth.create(state.getAttributeValue(ATTR_OUTPUTS));
     }
 
     @Override
@@ -150,7 +118,6 @@ public class PlaRom extends InstanceFactory {
   private static class PlaMenu implements ActionListener, MenuExtender {
     private JMenuItem edit, clear;
     private final Instance instance;
-    private CircuitState circState;
 
     public PlaMenu(Instance instance) {
       this.instance = instance;
@@ -158,25 +125,17 @@ public class PlaRom extends InstanceFactory {
 
     @Override
     public void actionPerformed(ActionEvent evt) {
-      PlaRomData data = PlaRom.getPlaRomData(instance, circState);
+      PlaRomData data = instance.getAttributeValue(CONTENTS_ATTR); 
       if (evt.getSource() == edit) {
         if (data.editWindow() == 1) data.clearMatrixValues();
       } else if (evt.getSource() == clear) data.clearMatrixValues();
       // if something changed
-      if (!data.getSavedData().equals(instance.getAttributeValue(CONTENTS_ATTR))) {
-        instance.fireInvalidated();
-        instance.getAttributeSet().setValue(CONTENTS_ATTR, data.getSavedData());
-        circState.getProject().getLogisimFile().setDirty(true);
-      }
     }
 
     @Override
     public void configureMenu(JPopupMenu menu, Project proj) {
-      this.circState = proj.getCircuitState();
-      boolean enabled = circState != null;
-
-      this.edit = createItem(enabled, S.get("ramEditMenuItem"));
-      this.clear = createItem(enabled, S.get("ramClearMenuItem"));
+      this.edit = createItem(true, S.get("ramEditMenuItem"));
+      this.clear = createItem(true, S.get("ramClearMenuItem"));
       menu.addSeparator();
       menu.add(this.edit);
       menu.add(this.clear);
@@ -201,44 +160,6 @@ public class PlaRom extends InstanceFactory {
 
   private static final ContentsAttribute CONTENTS_ATTR = new ContentsAttribute();
 
-  public static PlaRomData getPlaRomData(Instance instance, CircuitState state) {
-    byte inputs = instance.getAttributeValue(ATTR_INPUTS).byteValue();
-    byte outputs = instance.getAttributeValue(ATTR_OUTPUTS).byteValue();
-    byte and = instance.getAttributeValue(ATTR_AND).byteValue();
-    PlaRomData ret = (PlaRomData) instance.getData(state);
-    if (ret == null) {
-      ret = new PlaRomData(inputs, outputs, and);
-      // if new, fill the content with the saved data
-      ret.decodeSavedData(instance.getAttributeValue(CONTENTS_ATTR));
-      instance.setData(state, ret);
-    } else if (ret.updateSize(inputs, outputs, and)) {
-      // if size updated, update the content attribute, written here because can't
-      // access PlaRomData object from instanceAttributeChanged method
-      instance.getAttributeSet().setValue(CONTENTS_ATTR, ret.getSavedData());
-    }
-    CONTENTS_ATTR.setData(instance, state);
-    return ret;
-  }
-
-  public static PlaRomData getPlaRomData(InstanceState state) {
-    byte inputs = state.getAttributeValue(ATTR_INPUTS).byteValue();
-    byte outputs = state.getAttributeValue(ATTR_OUTPUTS).byteValue();
-    byte and = state.getAttributeValue(ATTR_AND).byteValue();
-    PlaRomData ret = (PlaRomData) state.getData();
-    if (ret == null) {
-      ret = new PlaRomData(inputs, outputs, and);
-      // if new, fill the content with the saved data
-      ret.decodeSavedData(state.getAttributeValue(CONTENTS_ATTR));
-      state.setData(ret);
-    } else if (ret.updateSize(inputs, outputs, and)) {
-      // if size updated, update the content attribute, written here because can't
-      // access PlaRomData object from instanceAttributeChanged method
-      state.getAttributeSet().setValue(CONTENTS_ATTR, ret.getSavedData());
-    }
-    CONTENTS_ATTR.setData(state);
-    return ret;
-  }
-
   public PlaRom() {
     super(_ID, S.getter("PlaRomComponent"));
     setIcon(new ArithmeticIcon("PLA", 3));
@@ -253,7 +174,7 @@ public class PlaRom extends InstanceFactory {
           CONTENTS_ATTR,
           Mem.ATTR_SELECTION
         },
-        new Object[] {4, 4, 4, "", StdAttr.DEFAULT_LABEL_FONT, true, "", Mem.SEL_LOW});
+        new Object[] {4, 4, 4, "", StdAttr.DEFAULT_LABEL_FONT, true, new PlaRomData(4,4,4), Mem.SEL_LOW});
     setOffsetBounds(Bounds.create(0, -30, 60, 60));
     setInstanceLogger(Logger.class);
   }
@@ -282,13 +203,13 @@ public class PlaRom extends InstanceFactory {
 
   @Override
   protected void instanceAttributeChanged(Instance instance, Attribute<?> attr) {
-    if (attr == ATTR_INPUTS || attr == ATTR_OUTPUTS) updateports(instance);
+    if (attr == ATTR_INPUTS || attr == ATTR_OUTPUTS || attr == ATTR_AND) updateports(instance);
     else instance.fireInvalidated();
   }
 
   @Override
   public void paintInstance(InstancePainter painter) {
-    PlaRomData data = getPlaRomData(painter);
+    PlaRomData data = painter.getAttributeValue(CONTENTS_ATTR);
     Graphics g = painter.getGraphics();
     painter.drawRoundBounds(Color.WHITE);
     Bounds bds = painter.getBounds();
@@ -311,7 +232,7 @@ public class PlaRom extends InstanceFactory {
 
   @Override
   public void propagate(InstanceState state) {
-    PlaRomData data = getPlaRomData(state);
+    PlaRomData data = state.getAttributeValue(CONTENTS_ATTR);
     Value cs = state.getPortValue(2);
     boolean selection = state.getAttributeValue(Mem.ATTR_SELECTION) == Mem.SEL_HIGH;
     boolean ComponentActive = !(cs == Value.FALSE && selection || cs == Value.TRUE && !selection);
@@ -330,8 +251,11 @@ public class PlaRom extends InstanceFactory {
   }
 
   private void updateports(Instance instance) {
-    byte inputbitwidth = instance.getAttributeValue(ATTR_INPUTS).byteValue();
-    byte outputbitwidth = instance.getAttributeValue(ATTR_OUTPUTS).byteValue();
+    int inputbitwidth = instance.getAttributeValue(ATTR_INPUTS).byteValue();
+    int outputbitwidth = instance.getAttributeValue(ATTR_OUTPUTS).byteValue();
+    int andbitwidth = instance.getAttributeValue(ATTR_AND).byteValue();
+    final var data = instance.getAttributeValue(CONTENTS_ATTR);
+    data.updateSize(inputbitwidth, outputbitwidth, andbitwidth);
     Port[] ps = new Port[3];
     ps[0] = new Port(0, 0, Port.INPUT, inputbitwidth);
     ps[1] = new Port(60, 0, Port.OUTPUT, outputbitwidth);

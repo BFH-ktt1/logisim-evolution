@@ -167,9 +167,9 @@ public class PlaRomPanel extends JPanel implements BaseMouseListenerContract, Ba
       g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
     }
     super.paintComponent(g);
-    byte inputs = data.getInputs();
-    byte outputs = data.getOutputs();
-    byte and = data.getAnd();
+    int inputs = data.getInputs();
+    int outputs = data.getOutputs();
+    int and = data.getAnd();
     GraphicsUtil.switchToWidth(g, 2);
     g.setColor(Color.DARK_GRAY);
     g.setFont(new Font("sans serif", Font.BOLD, 14));
