@@ -12,6 +12,7 @@ package com.cburch.logisim.file;
 import com.cburch.draw.model.AbstractCanvasObject;
 import com.cburch.logisim.circuit.Circuit;
 import com.cburch.logisim.circuit.CircuitAttributes;
+import com.cburch.logisim.circuit.SubcircuitFactory;
 import com.cburch.logisim.circuit.Wire;
 import com.cburch.logisim.comp.Component;
 import com.cburch.logisim.comp.ComponentFactory;
@@ -364,12 +365,15 @@ final class XmlWriter {
       final var value = comp.getAttributeSet().getValue(Text.ATTR_TEXT);
       if (value.isEmpty()) return null;
     }
-
     final var ret = doc.createElement("comp");
     if (libName != null) ret.setAttribute("lib", libName);
     ret.setAttribute("name", source.getName());
     ret.setAttribute("loc", comp.getLocation().toString());
-    addAttributeSetContent(ret, comp.getAttributeSet(), comp.getFactory(), false);
+    if (source instanceof SubcircuitFactory) {
+      System.out.println("Found a subcircuit");
+    } else {
+      addAttributeSetContent(ret, comp.getAttributeSet(), comp.getFactory(), false);
+    }
     return ret;
   }
 

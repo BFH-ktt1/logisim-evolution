@@ -25,13 +25,20 @@ import java.util.List;
 public class RamAttributes extends AbstractAttributeSet {
 
   /* here the rest is defined */
-  static final AttributeOption VOLATILE =
+  static final AttributeOption CLEAR_ON_RESET =
       new AttributeOption("volatile", S.getter("ramTypeVolatile"));
-  static final AttributeOption NONVOLATILE =
+  static final AttributeOption STAY_ON_RESET =
       new AttributeOption("nonvolatile", S.getter("ramTypeNonVolatile"));
   static final Attribute<AttributeOption> ATTR_TYPE =
       Attributes.forOption(
-          "type", S.getter("ramTypeAttr"), new AttributeOption[] {VOLATILE, NONVOLATILE});
+          "type", S.getter("ramTypeAttr"), new AttributeOption[] {CLEAR_ON_RESET, STAY_ON_RESET});
+  static final AttributeOption VOLATILE =
+      new AttributeOption("isRam", S.getter("ramIsRam"));
+  static final AttributeOption NONVOLATILE =
+      new AttributeOption("isEEPROM", S.getter("ramIsEEPROM"));
+  static final Attribute<AttributeOption> ATTR_BEHAVIOR =
+      Attributes.forOption(
+          "behavior", S.getter("ramBehaveAttr"), new AttributeOption[] {VOLATILE, NONVOLATILE});
   static final AttributeOption BUS_BIDIR =
       new AttributeOption("bidir", S.getter("ramBidirDataBus"));
   static final AttributeOption BUS_SEP =
@@ -67,7 +74,8 @@ public class RamAttributes extends AbstractAttributeSet {
   private AttributeOption lineSize = Mem.SINGLE;
   private Boolean allowMisaligned = false;
   private AttributeOption typeOfEnables = Mem.USEBYTEENABLES;
-  private AttributeOption ramType = VOLATILE;
+  private AttributeOption ramType = CLEAR_ON_RESET;
+  private AttributeOption ramBehavior = VOLATILE;
 
   RamAttributes() {
     updateAttributes();
@@ -80,6 +88,7 @@ public class RamAttributes extends AbstractAttributeSet {
     newList.add(Mem.DATA_ATTR);
     newList.add(Mem.ENABLES_ATTR);
     newList.add(ATTR_TYPE);
+    newList.add(ATTR_BEHAVIOR);
     newList.add(CLEAR_PIN);
     if (typeOfEnables.equals(Mem.USEBYTEENABLES)) {
       newList.add(StdAttr.TRIGGER);
@@ -134,6 +143,7 @@ public class RamAttributes extends AbstractAttributeSet {
     d.allowMisaligned = allowMisaligned;
     d.typeOfEnables = typeOfEnables;
     d.ramType = ramType;
+    d.ramBehavior = ramBehavior;
   }
 
   @Override
@@ -152,6 +162,9 @@ public class RamAttributes extends AbstractAttributeSet {
     }
     if (attr == ATTR_TYPE) {
       return (V) ramType;
+    }
+    if (attr == ATTR_BEHAVIOR) {
+      return (V) ramBehavior;
     }
     if (attr == StdAttr.LABEL) {
       return (V) label;
@@ -220,6 +233,12 @@ public class RamAttributes extends AbstractAttributeSet {
       final var val = (AttributeOption) value;
       if (!ramType.equals(val)) {
         ramType = val;
+        fireAttributeValueChanged(attr, value, null);
+      }
+    } else if (attr == ATTR_BEHAVIOR) { 
+      final var val = (AttributeOption) value;
+      if (!ramBehavior.equals(val)) {
+        ramBehavior = val;
         fireAttributeValueChanged(attr, value, null);
       }
     } else if (attr == StdAttr.LABEL) {
